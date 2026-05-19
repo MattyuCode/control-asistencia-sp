@@ -1,0 +1,53 @@
+/* Estas tres directivas le dicen a Tailwind que inserte sus estilos:
+   - @tailwind base: reset y estilos base de Tailwind
+   - @tailwind components: clases de componentes (no las usamos directo)
+   - @tailwind utilities: todas las clases utilitarias (bg-*, text-*, etc.)
+*/
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos GLOBALES adicionales que Tailwind no cubre fácilmente */
+@layer base {
+  body {
+    /* Fondo base con un sutil patrón de ruido */
+    background-color: theme('colors.paper');
+    color: theme('colors.ink');
+    font-family: theme('fontFamily.sans');
+    min-height: 100vh;
+  }
+
+  /* Patrón de fondo sutil */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 25% 30%, rgba(200,69,31,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 75% 70%, rgba(42,111,106,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+/* Animación para el toast */
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(100px); }
+  to { transform: translateX(-50%) translateY(0); }
+}
+
+.toast-enter {
+  animation: slideUp 0.3s ease forwards;
+}
+
+/* Triángulo en la esquina para días de fin de semana habilitados (Sebas) */
+.weekend-corner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 8px 8px 0 0;
+  border-color: theme('colors.gold') transparent transparent transparent;
+  opacity: 0.5;
+}
