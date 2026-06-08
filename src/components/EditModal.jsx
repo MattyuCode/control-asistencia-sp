@@ -11,12 +11,26 @@ import { useState, useEffect } from 'react';
 import { STATUS_META } from '../lib/status.js';
 import { EMPLOYEES, PAY_PER_HOUR } from '../config.js';
 import { MONTH_NAMES, WEEKDAY_NAMES } from '../lib/helpers.js';
+import { calculateCyclePay } from '../lib/cycles.js';
 
-export default function EditModal({ editing, onClose, onSave }) {
+export default function EditModal({ editing, onClose, onSave, onPreview, empData }) {
   // Estado local del modal (se inicializa con los valores actuales del día)
   const [status, setStatus] = useState(editing.entry.status || '');
   const [repHours, setRepHours] = useState(editing.entry.repExtra || 0);
   const [note, setNote] = useState(editing.entry.note || '');
+
+  // Tasa dinámica para empleados con salario fijo (Teresa)
+  const emp = EMPLOYEES[editing.emp];
+  const cycleInfo = emp.monthlySalary ? calculateCyclePay(empData || {}, editing.emp) : null;
+  const dailyRate = cycleInfo?.dailyRate || null;
+  const hourlyRate = dailyRate ? dailyRate / 6 : PAY_PER_HOUR;
+
+  function getDisplayValue(key, meta) {
+    if (!dailyRate) return meta.value;
+    if (key === 'medio' || key === 'feriado') return dailyRate;
+    if (key === 'completo' || key === 'feriado_trabajado') return dailyRate * 2;
+    return meta.value;
+  }
 
   // Cerrar el modal con la tecla Escape
   useEffect(() => {
@@ -26,6 +40,15 @@ export default function EditModal({ editing, onClose, onSave }) {
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
+
+  // Actualizar preview cuando cambia status o repHours
+  useEffect(() => {
+    if (onPreview) {
+      const previewEntry = { status: status || null };
+      if (repHours > 0) previewEntry.repExtra = repHours;
+      onPreview(previewEntry);
+    }
+  }, [status, repHours, onPreview]);
 
   // Cuando hacen clic en Guardar
   function handleSave() {
@@ -91,7 +114,7 @@ export default function EditModal({ editing, onClose, onSave }) {
                 `}
               >
                 <span className={`w-3.5 h-3.5 ${meta.bgColor} flex-shrink-0`}></span>
-                {meta.label}{meta.value > 0 ? ` · Q${meta.value}` : ''}
+                {meta.label}{meta.value > 0 ? ` · Q${getDisplayValue(key, meta).toFixed(2)}` : ''}
               </button>
             );
           })}
@@ -115,7 +138,7 @@ export default function EditModal({ editing, onClose, onSave }) {
             + Horas de reposición ese día
           </label>
           <div className="text-[11px] text-ink-soft mb-2.5 italic leading-snug">
-            Si se quedó después de su horario, cada hora paga Q{PAY_PER_HOUR.toFixed(2)} y descuenta 1h del saldo pendiente.
+            Si se quedó después de su horario, cada hora paga Q{hourlyRate.toFixed(2)} y descuenta 1h del saldo pendiente.
           </div>
           <div className="grid grid-cols-6 gap-1.5">
             {[0, 1, 2, 3, 4, 5].map(h => (

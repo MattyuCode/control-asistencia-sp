@@ -4,14 +4,22 @@
 // Pestañas para alternar entre Teresa y Sebas.
 
 import { EMPLOYEES, EMPLOYEE_KEYS, PAY_HALF } from '../config.js';
+import { calculateCyclePay } from '../lib/cycles.js';
 
-export default function EmployeeTabs({ currentEmp, onSelect }) {
+export default function EmployeeTabs({ currentEmp, onSelect, data }) {
   return (
     <div className="grid grid-cols-2 border-2 border-ink mb-6">
       {EMPLOYEE_KEYS.map((key, idx) => {
         const emp = EMPLOYEES[key];
         const isActive = currentEmp === key;
         const isLast = idx === EMPLOYEE_KEYS.length - 1;
+
+        let displayRate = PAY_HALF;
+        if (emp.monthlySalary && data) {
+          const c = calculateCyclePay(data[key], key);
+          if (c.dailyRate) displayRate = c.dailyRate;
+        }
+
         return (
           <div
             key={key}
@@ -30,7 +38,7 @@ export default function EmployeeTabs({ currentEmp, onSelect }) {
             <div className={`text-right font-mono text-[9px] tracking-wider uppercase leading-relaxed ${isActive ? 'opacity-90' : 'opacity-85'}`}>
               Pago x medio día
               <div className={`font-serif font-bold text-base sm:text-lg normal-case tracking-normal mt-0.5 ${isActive ? 'text-gold' : 'text-ink'}`}>
-                Q{PAY_HALF}.00
+                Q{displayRate % 1 === 0 ? displayRate.toFixed(2) : displayRate.toFixed(2)}
               </div>
             </div>
           </div>

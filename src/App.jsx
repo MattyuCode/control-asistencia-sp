@@ -64,6 +64,9 @@ function MainApp({ onLogout }) {
   // Día siendo editado en el modal (null = modal cerrado)
   const [editing, setEditing] = useState(null);
 
+  // Vista previa del entry mientras se edita (para mostrar cambios en tiempo real)
+  const [previewEntry, setPreviewEntry] = useState(null);
+
   // Estado de conexión: 'online' | 'saving' | 'offline'
   const [connStatus, setConnStatus] = useState('online');
   const [lastSync, setLastSync] = useState(null);
@@ -235,6 +238,7 @@ function MainApp({ onLogout }) {
       <EmployeeTabs
         currentEmp={currentEmp}
         onSelect={setCurrentEmp}
+        data={data}
       />
 
       <MonthNav
@@ -265,6 +269,10 @@ function MainApp({ onLogout }) {
           <PayPanel
             empKey={currentEmp}
             empData={data[currentEmp] || {}}
+            previewEntry={previewEntry}
+            editingKey={editing?.key}
+            viewYear={viewYear}
+            viewMonth={viewMonth}
           />
           <ReposicionPanel
             empData={data[currentEmp] || {}}
@@ -281,10 +289,16 @@ function MainApp({ onLogout }) {
       {editing && (
         <EditModal
           editing={editing}
-          onClose={() => setEditing(null)}
+          empData={data[editing.emp] || {}}
+          onClose={() => {
+            setEditing(null);
+            setPreviewEntry(null);
+          }}
+          onPreview={setPreviewEntry}
           onSave={(entry) => {
             saveEntry(editing.emp, editing.key, entry);
             setEditing(null);
+            setPreviewEntry(null);
           }}
         />
       )}

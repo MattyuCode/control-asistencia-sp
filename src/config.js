@@ -24,11 +24,13 @@ export const EMPLOYEES = {
     name: 'Teresa',
     cycleType: 'biweekly_19',
     worksWeekends: false,
+    monthlySalary: 700,   // salario fijo por ciclo completo
   },
   sebas: {
     name: 'Sebas',
     cycleType: 'monthly',
     worksWeekends: true,
+    payDay: 6, // se paga el día 6 del mes siguiente al ciclo
   },
 };
 
