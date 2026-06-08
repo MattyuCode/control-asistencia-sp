@@ -37,37 +37,43 @@ export function getCycle(empKey, offset = 0, refDate = null) {
   const m = ref.getMonth();
   const d = ref.getDate();
 
-  if (emp.cycleType === 'monthly') {
-    // SEBAS: ciclo mensual (del 1 al último día del mes)
-    // Si hoy es antes del día de pago, el ciclo "actual" es el mes anterior
-    // (el trabajo ya se hizo pero aún no se cobró)
-    const payDay = emp.payDay || 1;
-    const baseMonth = d < payDay ? m - 1 + offset : m + offset;
-    return {
-      start: new Date(y, baseMonth, 1),
-      end: new Date(y, baseMonth + 1, 0),       // último día del mes
-      payDate: new Date(y, baseMonth + 1, payDay),
-      mensual: true,
-    };
+  // Ciclos biweekly genéricos:
+  // biweekly_19 → Teresa: del 19 al 18, pago el 18
+  // biweekly_7  → Sebas:  del 7 al 6,  pago el 6
+  // biweekly_19 → Teresa: del 19 al 18, pago el 18
+  // biweekly_7  → Sebas:  del 7 al 6,  pago el 6
+  //   Todos los ciclos: 7 del mes M → 6 del mes M+1
+  //   EXCEPCIÓN: el primer ciclo arrancó el 6 de mayo (firstCycleEnd = 6 jun 2026)
+  //   Para ese ciclo especial, startDay = 6 en lugar de 7.
+
+  if (emp.cycleType === 'biweekly_7') {
+    // El ciclo TERMINA siempre el 6.
+    // Si d > 6 → el ciclo activo cierra el próximo mes.
+    // Si d ≤ 6 → el ciclo activo cierra este mes (estamos en los días de cierre/pago).
+    const endMonth = (d > 6 ? m + 1 : m) + offset;
+    const end      = new Date(y, endMonth, 6);
+    const payDate  = end;
+
+    // ¿Es el primer ciclo especial (mayo 6 → jun 6)?
+    const firstEnd = emp.firstCycleEnd ? new Date(emp.firstCycleEnd) : null;
+    const isFirstCycle = firstEnd &&
+      end.getFullYear() === firstEnd.getFullYear() &&
+      end.getMonth()    === firstEnd.getMonth();
+
+    const startDay = isFirstCycle ? 6 : 7;
+    const start    = new Date(end.getFullYear(), end.getMonth() - 1, startDay);
+
+    return { start, end, payDate, mensual: false };
   }
 
-  // TERESA: ciclo del 19 al 18
-  // Si hoy >= 19, el ciclo actual empezó este mes
-  // Si hoy <= 18, el ciclo actual empezó el mes pasado (termina hoy o antes)
-  let baseMonth, baseYear;
-  if (d >= 19) {
-    baseMonth = m;
-    baseYear = y;
-  } else {
-    baseMonth = m - 1;
-    baseYear = y;
-  }
-  baseMonth += offset;
+  // Teresa: biweekly_19 — del 19 al 18
+  const startDay = 19;
+  let baseMonth = (d >= startDay ? m : m - 1) + offset;
 
   return {
-    start: new Date(baseYear, baseMonth, 19),
-    end: new Date(baseYear, baseMonth + 1, 18),
-    payDate: new Date(baseYear, baseMonth + 1, 18),
+    start:   new Date(y, baseMonth,     19),
+    end:     new Date(y, baseMonth + 1, 18),
+    payDate: new Date(y, baseMonth + 1, 18),
     mensual: false,
   };
 }
@@ -95,72 +101,35 @@ export function calculateCyclePay(empData, empKey, _offset = 0, refDate = null) 
   const tm = today.getMonth();
   const td = today.getDate();
 
-  let start, end, payDate, mensual;
+  // Ambos empleados usan ciclos biweekly (19→18 ó 6→5)
+  const mensual = false;
+  const ref = refDate || today;
+  const vy  = ref.getFullYear();
+  const vm  = ref.getMonth();
 
-  if (emp.cycleType === 'monthly') {
-    mensual = true;
-    const payDay = emp.payDay || 1;
+  const activeCycle      = getCycle(empKey, 0);
+  const activeStartM     = activeCycle.start.getMonth();
+  const activeStartY     = activeCycle.start.getFullYear();
+  const activeEndM       = activeCycle.end.getMonth();
+  const activeEndY       = activeCycle.end.getFullYear();
 
-    const ref = refDate || today;
-    const vy = ref.getFullYear();
-    const vm = ref.getMonth();
+  const viewMonthStart   = new Date(vy, vm, 1);
+  const activeCycleStart = new Date(activeStartY, activeStartM, 1);
+  const activeCycleEnd   = new Date(activeEndY,   activeEndM,   1);
 
-    // Inicio del período sin pagar
-    let unpaidStartM = td < payDay ? tm - 1 : tm;
-    let unpaidStartY = ty;
-    if (unpaidStartM < 0) { unpaidStartM = 11; unpaidStartY--; }
+  const isInActiveCycle  = viewMonthStart >= activeCycleStart
+                        && viewMonthStart <= activeCycleEnd;
 
-    const unpaidStart = new Date(unpaidStartY, unpaidStartM, 1);
-    const viewStart   = new Date(vy, vm, 1);
-    const viewEnd     = new Date(vy, vm + 1, 0);
-    const todayStart  = new Date(ty, tm, 1);
-
-    const isUnpaidPeriod = viewStart >= unpaidStart && viewStart <= todayStart;
-
-    if (isUnpaidPeriod) {
-      // Período sin pagar: usar el fin del mes completo (no cortar en hoy)
-      // Los días sin entrada simplemente no suman nada
-      start   = unpaidStart;
-      end     = viewEnd;
-      payDate = new Date(unpaidStartY, unpaidStartM + 1, payDay);
-    } else {
-      start   = viewStart;
-      end     = viewEnd;
-      payDate = new Date(vy, vm + 1, payDay);
-    }
-
+  let start, end, payDate;
+  if (isInActiveCycle) {
+    start   = activeCycle.start;
+    end     = activeCycle.end;
+    payDate = activeCycle.payDate;
   } else {
-    // TERESA: ciclo 19 → 18
-    mensual = false;
-    const ref = refDate || today;
-    const vy  = ref.getFullYear();
-    const vm  = ref.getMonth();
-
-    const activeCycle      = getCycle(empKey, 0);
-    const activeStartM     = activeCycle.start.getMonth();
-    const activeStartY     = activeCycle.start.getFullYear();
-    const activeEndM       = activeCycle.end.getMonth();
-    const activeEndY       = activeCycle.end.getFullYear();
-
-    const viewMonthStart   = new Date(vy, vm, 1);
-    const activeCycleStart = new Date(activeStartY, activeStartM, 1);
-    const activeCycleEnd   = new Date(activeEndY,   activeEndM,   1);
-
-    const isInActiveCycle  = viewMonthStart >= activeCycleStart
-                          && viewMonthStart <= activeCycleEnd;
-
-    if (isInActiveCycle) {
-      // Ciclo activo: usar el fin real del ciclo (Jun 18)
-      // Los días sin entrada no suman — no hace falta cortar en hoy
-      start   = activeCycle.start;
-      end     = activeCycle.end;
-      payDate = activeCycle.payDate;
-    } else {
-      const cycle = getCycle(empKey, 0, new Date(vy, vm, 15));
-      start   = cycle.start;
-      end     = cycle.end;
-      payDate = cycle.payDate;
-    }
+    const cycle = getCycle(empKey, 0, new Date(vy, vm, 15));
+    start   = cycle.start;
+    end     = cycle.end;
+    payDate = cycle.payDate;
   }
 
   // Contar días trabajados en el rango calculado
@@ -229,16 +198,11 @@ export function calculateCyclePay(empData, empKey, _offset = 0, refDate = null) 
  */
 export function calculatePrevCyclePay(empData, empKey, refDate = null) {
   const emp = EMPLOYEES[empKey];
-  if (emp.cycleType !== 'biweekly_19') return null;
+  if (!emp.cycleType.startsWith('biweekly')) return null;
 
-  const ref   = refDate || new Date();
-  // El ciclo actual se basa en el día 15 del mes visto
-  const curStart = getCycle(empKey, 0, new Date(ref.getFullYear(), ref.getMonth(), 15)).start;
-
-  // El ciclo anterior termina el día antes de que empiece el actual
-  const prevStart = new Date(curStart.getFullYear(), curStart.getMonth() - 1, 19);
-  const prevEnd   = new Date(curStart.getFullYear(), curStart.getMonth(),     18);
-  const prevPay   = new Date(curStart.getFullYear(), curStart.getMonth(),     18);
+  const ref      = refDate || new Date();
+  const prevCycle = getCycle(empKey, -1, ref);
+  const { start: prevStart, end: prevEnd, payDate: prevPay } = prevCycle;
 
   let medios = 0, completos = 0, feriados = 0, feriadosTrab = 0, horasRepExtra = 0;
 
@@ -254,17 +218,12 @@ export function calculatePrevCyclePay(empData, empKey, refDate = null) {
     }
   });
 
-  const pagoHorasRep = horasRepExtra * PAY_PER_HOUR;
   const totalDias = medios + completos + feriados + feriadosTrab;
-
-  let amount;
-  if (emp.monthlySalary) {
-    const workingDays = countWorkingDays(prevStart, prevEnd);
-    const dailyRate   = workingDays > 0 ? emp.monthlySalary / workingDays : 0;
-    amount = totalDias * dailyRate + pagoHorasRep;
-  } else {
-    amount = medios * PAY_HALF + completos * PAY_FULL + pagoHorasRep;
-  }
+  const workingDays = countWorkingDays(prevStart, prevEnd);
+  const dailyRate   = workingDays > 0 ? emp.monthlySalary / workingDays : 0;
+  const hourlyRate  = dailyRate / 6;
+  const pagoHorasRep = horasRepExtra * hourlyRate;
+  const amount = (medios * dailyRate) + (completos * dailyRate * 2) + pagoHorasRep;
 
   return {
     start: prevStart, end: prevEnd, payDate: prevPay,

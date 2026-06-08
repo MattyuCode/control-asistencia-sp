@@ -17,7 +17,7 @@ export const PAY_PER_HOUR = 35 / 6;      // Pago por hora de reposición (Q5.83)
 // ----- Empleados -----
 // La 'key' es el identificador interno, 'name' es el que se muestra.
 // Para cada empleado se define:
-// - cycleType: 'biweekly_19' = ciclo del 19 al 18 / 'monthly' = del 1 al fin de mes
+// - cycleType: 'biweekly_19' = ciclo del 19 al 18 / 'biweekly_7' = ciclo del 7 al 6
 // - worksWeekends: si puede trabajar fines de semana
 export const EMPLOYEES = {
   teresa: {
@@ -28,9 +28,12 @@ export const EMPLOYEES = {
   },
   sebas: {
     name: 'Sebas',
-    cycleType: 'monthly',
+    cycleType: 'biweekly_7',   // ciclo del 7 al 6, pago el día 6
     worksWeekends: true,
-    payDay: 6, // se paga el día 6 del mes siguiente al ciclo
+    monthlySalary: 700,
+    // Primer ciclo especial: arrancó el 6 de mayo (no el 7).
+    // A partir del siguiente, todos empiezan el 7.
+    firstCycleEnd: '2026-06-06',
   },
 };
 
